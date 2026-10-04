@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Skill Spinner</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--tx:#1d2430;--mut:#6b7482;--ac:#4f7cf0;--bd:#e1e4ea;--ok:#2fa56a;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14171c;--card:#1d222a;--tx:#e8ebf0;--mut:#98a1af;--ac:#6f94ff;--bd:#2d343f;--ok:#4cc88a}}
+:root[data-theme="dark"]{--bg:#14171c;--card:#1d222a;--tx:#e8ebf0;--mut:#98a1af;--ac:#6f94ff;--bd:#2d343f;--ok:#4cc88a}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.4}
+main{max-width:520px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:4px 0 12px}
+nav{display:flex;gap:6px;margin-bottom:14px}
+nav button{flex:1;padding:10px;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;font-size:14px;cursor:pointer}
+nav button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px;margin-bottom:14px}
+.btn{background:var(--ac);color:#fff;border:0;border-radius:10px;padding:11px 16px;font-size:15px;cursor:pointer}
+.btn:disabled{opacity:.5}
+.btn.ghost{background:transparent;color:var(--ac);border:1px solid var(--ac)}
+input,select{padding:10px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx);font-size:15px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.chip{display:inline-flex;gap:6px;align-items:center;background:var(--bg);border:1px solid var(--bd);border-radius:20px;padding:4px 10px;font-size:13px;margin:3px 3px 0 0}
+.chip b{cursor:pointer;color:var(--mut)}
+.wheelbox{position:relative;width:min(300px,100%);margin:10px auto}
+canvas{width:100%;height:auto;display:block}
+.ptr{position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:11px solid transparent;border-right:11px solid transparent;border-top:22px solid var(--tx)}
+.mut{color:var(--mut);font-size:13px}
+.big{font-size:40px;font-weight:700}
+.bar{height:10px;background:var(--bg);border-radius:6px;overflow:hidden;border:1px solid var(--bd)}
+.bar i{display:block;height:100%;background:var(--ok)}
+.days{display:flex;gap:4px;margin-top:10px;flex-wrap:wrap}
+.d{width:26px;height:26px;border-radius:6px;background:var(--bg);border:1px solid var(--bd);font-size:11px;display:flex;align-items:center;justify-content:center;color:var(--mut)}
+.d.f{background:var(--ok);color:#fff;border-color:var(--ok)}
+.d.t{outline:2px solid var(--ac)}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<main>
+<h1>🎡 Skill Spinner</h1>
+<nav id="nav"></nav>
+<div id="v"></div>
+</main>
+<script>
+const COL=["#4f7cf0","#f0a44f","#2fa56a","#e0586f","#9a6cf0","#3bb5c9","#d4c23f","#f07a4f"];
+let S={skills:["Guitar","Spanish","Drawing","Coding"],active:null,log:{},history:[]};
+try{const r=localStorage.getItem("skillspinner");if(r)S=Object.assign(S,JSON.parse(r))}catch(e){}
+const save=()=>{try{localStorage.setItem("skillspinner",JSON.stringify(S))}catch(e){}};
+const ds=d=>{const x=new Date(d);return x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0")};
+const today=()=>ds(new Date());
+const addDays=(s,n)=>{const [y,m,d]=s.split("-").map(Number);return ds(new Date(y,m-1,d+n))};
+const diff=(a,b)=>{const p=s=>{const [y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d)};return Math.round((p(b)-p(a))/864e5)};
+let tab="spin",angle=0,spinning=false,picked=null;
+const tabs=[["spin","Spin"],["today","Today"],["hist","History"]];
+function streak(skill){const L=new Set(S.log[skill]||[]);let d=today();if(!L.has(d))d=addDays(d,-1);let n=0;while(L.has(d)){n++;d=addDays(d,-1)}return n}
+function render(){
+ document.getElementById("nav").innerHTML=tabs.map(t=>`<button class="${tab===t[0]?"on":""}" onclick="tab='${t[0]}';render()">${t[1]}</button>`).join("");
+ const v=document.getElementById("v");
+ if(tab==="spin")spinView(v);else if(tab==="today")todayView(v);else histView(v);
+}
+function spinView(v){
+ v.innerHTML=`<div class="card">
+ <div class="row"><input id="ns" placeholder="Add a skill" style="flex:1"><button class="btn" onclick="addSkill()">Add</button></div>
+ <div>${S.skills.map((s,i)=>`<span class="chip">${esc(s)} <b onclick="rmSkill(${i})">×</b></span>`).join("")}</div></div>
+ <div class="card" style="text-align:center">
+ ${S.active?`<p class="mut">You already have an active challenge: <b>${esc(S.active.skill)}</b>. Finish it in the Today tab before spinning again.</p>`:""}
+ <div class="wheelbox"><div class="ptr"></div><canvas id="c" width="600" height="600"></canvas></div>
+ <button class="btn" id="sp" onclick="spin()" ${S.skills.length<2||S.active?"disabled":""}>Spin the wheel</button>
+ <div id="res"></div></div>`;
+ document.getElementById("ns").addEventListener("keydown",e=>{if(e.key==="Enter")addSkill()});
+ draw();
+ if(picked)showPick();
+}
+function esc(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function addSkill(){const i=document.getElementById("ns");const t=i.value.trim();if(!t||S.skills.includes(t)||S.skills.length>=12)return;S.skills.push(t);picked=null;save();render()}
+function rmSkill(i){S.skills.splice(i,1);picked=null;save();render()}
+function draw(){
+ const c=document.getElementById("c");if(!c)return;const x=c.getContext("2d"),W=600,R=290,n=S.skills.length;
+ x.clearRect(0,0,W,W);
+ if(!n){x.fillStyle="#888";x.font="28px sans-serif";x.textAlign="center";x.fillText("Add some skills",300,300);return}
+ const seg=2*Math.PI/n;
+ S.skills.forEach((s,i)=>{
+  const a0=angle+i*seg-Math.PI/2*0;
+  x.beginPath();x.moveTo(300,300);x.arc(300,300,R,a0,a0+seg);x.closePath();
+  x.fillStyle=COL[i%COL.length];x.fill();x.strokeStyle="#fff";x.lineWidth=3;x.stroke();
+  x.save();x.translate(300,300);x.rotate(a0+seg/2);x.fillStyle="#fff";x.font="bold 30px sans-serif";x.textAlign="right";x.textBaseline="middle";
+  x.fillText(s.length>14?s.slice(0,13)+"…":s,R-24,0);x.restore();
+ });
+ x.beginPath();x.arc(300,300,26,0,7);x.fillStyle="#fff";x.fill();
+}
+function spin(){
+ if(spinning||S.skills.length<2||S.active)return;
+ spinning=true;picked=null;document.getElementById("res").innerHTML="";document.getElementById("sp").disabled=true;
+ const n=S.skills.length,seg=2*Math.PI/n,k=Math.floor(Math.random()*n);
+ // pointer at top (-90deg): segment k center must land there
+ const target=-Math.PI/2-(k+0.5)*seg;
+ const m=2*Math.PI;
+ const delta=(((target-angle)%m)+m)%m+m*(5+Math.floor(Math.random()*3));
+ const a0=angle,t0=performance.now(),dur=4200;
+ (function f(t){
+  const p=Math.min(1,(t-t0)/dur),e=1-Math.pow(1-p,4);
+  angle=a0+delta*e;draw();
+  if(p<1)requestAnimationFrame(f);else{spinning=false;picked=S.skills[k];render()}
+ })(t0);
+}
+function showPick(){
+ document.getElementById("res").innerHTML=`<h2 style="margin:14px 0 4px">🎯 ${esc(picked)}</h2>
+ <p class="mut">Set your plan for this skill</p>
+ <div class="row" style="justify-content:center">
+ <select id="dd"><option value="7">1 week</option><option value="14">2 weeks</option><option value="21">3 weeks</option><option value="30">30 days</option></select>
+ <select id="mm"><option>10</option><option>15</option><option selected>20</option><option>30</option><option>45</option><option>60</option></select><span class="mut">min/day</span></div>
+ <div class="row" style="justify-content:center;margin-top:12px"><button class="btn" onclick="startPlan()">Start challenge</button><button class="btn ghost" onclick="picked=null;render()">Skip</button></div>`;
+ const sp=document.getElementById("sp");if(sp)sp.disabled=!!S.active;
+}
+function startPlan(){
+ S.active={skill:picked,days:+document.getElementById("dd").value,mins:+document.getElementById("mm").value,start:today()};
+ picked=null;save();tab="today";render();
+}
+function todayView(v){
+ const a=S.active;
+ if(!a){v.innerHTML=`<div class="card"><p>No active challenge yet.</p><button class="btn" onclick="tab='spin';render()">Go spin the wheel</button></div>`;return}
+ const L=new Set(S.log[a.skill]||[]),t=today(),elapsed=diff(a.start,t),over=elapsed>=a.days;
+ let cells="";
+ for(let i=0;i<a.days;i++){const d=addDays(a.start,i);cells+=`<div class="d ${L.has(d)?"f":""} ${d===t?"t":""}">${i+1}</div>`}
+ const done=[...L].filter(d=>diff(a.start,d)>=0&&diff(a.start,d)<a.days).length;
+ v.innerHTML=`<div class="card"><div class="mut">Current skill</div><h2 style="margin:2px 0 8px">${esc(a.skill)}</h2>
+ <div class="row" style="justify-content:space-between"><div><div class="big">🔥 ${streak(a.skill)}</div><div class="mut">day streak</div></div>
+ <div style="text-align:right"><div class="big" style="font-size:28px">${done}/${a.days}</div><div class="mut">days done · ${a.mins} min/day</div></div></div>
+ <div class="bar" style="margin-top:12px"><i style="width:${Math.round(done/a.days*100)}%"></i></div>
+ <div class="days">${cells}</div>
+ <div class="row" style="margin-top:14px">
+ ${over?`<button class="btn" onclick="finish()">Finish &amp; save to history</button>`:
+  L.has(t)?`<button class="btn ghost" onclick="toggle('${t}')">Undo today's check-in</button>`:`<button class="btn" onclick="toggle('${t}')">✓ I practiced today</button>`}
+ ${!over?`<button class="btn ghost" onclick="finish()">End early</button>`:""}</div>
+ ${over?`<p class="mut">Your ${a.days}-day challenge is over. Nice work!</p>`:`<p class="mut">Day ${elapsed+1} of ${a.days}</p>`}</div>`;
+}
+function toggle(d){const a=S.active.skill;const L=S.log[a]=S.log[a]||[];const i=L.indexOf(d);if(i>=0)L.splice(i,1);else L.push(d);save();render()}
+function finish(){
+ const a=S.active,L=S.log[a.skill]||[];
+ const done=L.filter(d=>diff(a.start,d)>=0&&diff(a.start,d)<a.days).length;
+ S.history.unshift({skill:a.skill,days:a.days,mins:a.mins,start:a.start,done});
+ S.active=null;save();tab="hist";render();
+}
+function histView(v){
+ const skills=[...new Set([...S.history.map(h=>h.skill),...(S.active?[S.active.skill]:[])])];
+ if(!skills.length){v.innerHTML=`<div class="card"><p class="mut">No history yet. Complete a check-in and finish a challenge to see progress here.</p></div>`;return}
+ v.innerHTML=skills.map(s=>{
+  const days=(S.log[s]||[]).length,mins=[...(S.history.filter(h=>h.skill===s))].reduce((t,h)=>t+h.done*h.mins,0)
+   +(S.active&&S.active.skill===s?(S.log[s]||[]).filter(d=>diff(S.active.start,d)>=0).length*S.active.mins:0);
+  const runs=S.history.filter(h=>h.skill===s);
+  return `<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">${esc(s)}</h3>${S.active&&S.active.skill===s?'<span class="chip">active</span>':""}</div>
+  <p class="mut" style="margin:4px 0 8px">${days} days practiced · ~${mins} min total · best current streak ${streak(s)}</p>
+  ${runs.map(h=>`<div class="mut" style="margin-top:6px">${h.start} · ${h.done}/${h.days} days · ${h.mins} min/day</div><div class="bar"><i style="width:${Math.round(h.done/h.days*100)}%"></i></div>`).join("")}</div>`}).join("")
+  +`<button class="btn ghost" onclick="if(confirm('Erase all data?')){S={skills:['Guitar','Spanish','Drawing','Coding'],active:null,log:{},history:[]};save();render()}">Reset all data</button>`;
+}
+render();
+</script>
+</body>
+</html>
+ 
