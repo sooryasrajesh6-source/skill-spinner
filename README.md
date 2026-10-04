@@ -6,7 +6,7 @@ Skill Spinner is a free, offline-capable web app that helps you build skills thr
 
 Open the app · works on phone and desktop · no sign-up · no ads
 
-<!-- Add screenshots here, e.g. ![Spin screen](screenshots/spin.png) ![Today screen](screenshots/today.png) ![History screen](screenshots/history.png) -->
+
 How it works
 Add your skills. Guitar, Spanish, drawing, coding, anything you want to get better at.
 Spin the wheel. It picks the skill to focus on for the next week or more.
@@ -27,7 +27,7 @@ Android (Chrome): open the link, then menu → Install app.
 iPhone (Safari): open the link, then Share → Add to Home Screen.
 Run locally
 bash
-git clone https://github.com/YOUR-USERNAME/skill-spinner.git
+git clone https://github.comsooryasrajesh6-source/skill-spinner.git
 cd skill-spinner
 python3 -m http.server 8000
 
